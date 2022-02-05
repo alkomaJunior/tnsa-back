@@ -1,0 +1,91 @@
+# This file is a template, and might need editing before it works on your project.
+# To contribute improvements to CI/CD templates, please follow the Development guide at:
+# https://docs.gitlab.com/ee/development/cicd/templates.html
+# This specific template is located at:
+# https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Getting-Started.gitlab-ci.yml
+
+# This is a sample GitLab CI/CD configuration file that should run without any modifications.
+# It demonstrates a basic 3 stage CI/CD pipeline. Instead of real tests or scripts,
+# it uses echo commands to simulate the pipeline execution.
+#
+# A pipeline is composed of independent jobs that run scripts, grouped into stages.
+# Stages run in sequential order, but jobs within stages run in parallel.
+#
+# For more information, see: https://docs.gitlab.com/ee/ci/yaml/index.html#stages
+
+stages:          # List of stages for jobs, and their order of execution
+  - build
+  - test
+  - deploy
+
+mysql:
+  stage: build
+  before_script:
+    - sudo apt-get update -qy
+    - sudo apt-get -yq install ansible
+    - ansible-galaxy install geerlingguy.mysql --force
+  script:
+    -  ansible-playbook /home/alkoma/playbooks/mysql/mysql.yaml
+
+composer:
+  stage: build
+  before_script:
+    - sudo apt-get update -qy
+    - sudo apt-get dist-upgrade -qy
+    - sudo apt install software-properties-common -qy
+    - sudo add-apt-repository ppa:ondrej/php -y
+    - sudo apt-get update -qy
+    - sudo apt install php7.4 -y
+    - php -v
+    - sudo apt-get install -y php7.4-cli php7.4-json php7.4-common php7.4-mysql php7.4-zip php7.4-gd php7.4-mbstring php7.4-curl php7.4-xml php7.4-bcmath
+    - php -m
+    - sudo apt-get update -qy
+    - wget -qO - https://getcomposer.org/installer | sudo php -- --install-dir=/usr/local/bin/ --filename=composer
+  dependencies:
+    - mysql
+  script:
+    - composer install --prefer-dist --no-scripts -q -o
+    - cp .env.example .env
+    - composer update
+    - composer fund
+    - php artisan key:generate
+    - php artisan migrate
+  after_script:
+    - php artisan config:cache
+    - php artisan view:cache
+  artifacts:
+    expire_in: 1 month
+    paths:
+      - vendor/
+      - .env
+
+npm:
+  stage: build
+  before_script:
+    - sudo apt update -yq
+    - sudo apt install nodejs -yq
+    - sudo apt install npm -yq
+    - nodejs -vnodejs -v
+  script:
+      - npm install
+      - npm run production
+  artifacts:
+    expire_in: 1 month
+    paths:
+      - node_modules/
+      - public/css/
+      - public/js/
+
+phpunit:
+  stage: test
+  dependencies:
+    - composer
+  script:
+    - ./vendor/bin/phpunit --coverage-text --colors=never
+
+production:
+  stage: deploy
+  dependencies:
+    - composer
+  script:
+    -  ansible-playbook ansible-playbooks/laravel-playbook/Ansible-playbook/main.yml

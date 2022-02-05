@@ -1,0 +1,9 @@
+- name: deploying laravel application
+  hosts: laravel
+  become: yes
+  gather_facts: false
+  vars_files:
+    - /home/alkoma/playbooks/vars/laravel/main.yaml
+  tasks:
+    - include_role:
+        name: php
